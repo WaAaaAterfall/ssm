@@ -42,8 +42,30 @@ def _build_eval_inputs(z_list, u_list, x_list, results):
     return u_aug, x_trim
 
 
-def evaluate_perturbation_plds(results, z_list, x_list, u_list):
+def infer_latents(results, z_list, x_list, u_list, post_n_iters=15):
+    """Run the smoother (fixed params) and return per-trial latent means.
+
+    Returns a list of ``(T_n - J, p)`` arrays, the posterior mean continuous
+    states ``E[s_t]`` for each trial -- the PLDS analog of "neural data after
+    PCA".  ``num_iters`` is kept small for the same reason as in
+    :func:`evaluate_perturbation_plds`.
+    """
+    lds = results["_ssm_model"]
+    M = results["_meta"]["M"]
+    u_aug, x_trim = _build_eval_inputs(z_list, u_list, x_list, results)
+    _elbos, posterior = lds.approximate_posterior(
+        x_trim, inputs=(u_aug if M > 0 else None),
+        method="laplace_em", num_iters=post_n_iters, verbose=0)
+    return [np.asarray(s) for s in posterior.mean_continuous_states]
+
+
+def evaluate_perturbation_plds(results, z_list, x_list, u_list, post_n_iters=15):
     """Evaluate a fitted perturbation PLDS on (possibly held-out) trials.
+
+    ``post_n_iters`` controls how many Laplace-EM passes are run to fit the
+    posterior with the model parameters held fixed.  With ``learning=False``
+    each outer pass already drives ``q(x)`` to its Newton optimum, so a handful
+    of iterations suffices; the ssm default of 100 just wastes time.
 
     Returns
     -------
@@ -67,7 +89,7 @@ def evaluate_perturbation_plds(results, z_list, x_list, u_list):
     # Run the smoother with fixed parameters (no learning).
     elbos, posterior = lds.approximate_posterior(
         x_trim, inputs=(u_aug if M > 0 else None),
-        method="laplace_em", verbose=0)
+        method="laplace_em", num_iters=post_n_iters, verbose=0)
     Es_list = posterior.mean_continuous_states  # list of (T_n, p)
 
     all_y, all_mu = [], []
