@@ -117,3 +117,7 @@ notebooks/*.html
 .vscode
 
 .DS_Store
+
+# Cached PLDS fits (~3.4MB each, regenerable via fit_p10_cache.py from the
+# session data on isilon; contain per-trial latents + behavior)
+perturbation_plds_results/**/fit_p10.pkl
